@@ -9,4 +9,11 @@ if reload_all_data
 else
     load('easy01_truth')
 end
-    
+%%
+if reload_all_data && load_raw_image_data
+    cam0_bag = select(easy01_dataset_bag, 'Time', [easy01_dataset_bag.StartTime, easy01_dataset_bag.EndTime], ...
+                      'Topic','/cam0/image_raw');
+    cam1_bag = select(easy01_dataset_bag, 'Time', [easy01_dataset_bag.StartTime, easy01_dataset_bag.EndTime], ...
+                      'Topic','/cam0/image_raw');
+    save('camera_msgs', 'cam0_bag', 'cam1_bag')
+end
