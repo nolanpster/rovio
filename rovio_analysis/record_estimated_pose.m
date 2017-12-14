@@ -56,6 +56,6 @@ reply = input('Do you want to overwrite the recorded data file?? Y/N [Y]:','s');
 if isempty(reply)
   reply = 'Y';
 end
-if STRCMP(reply,'Y')
+if STRCMP(upper(reply),'Y')
     save(matfile_name, 'pose_wcs_cell')
 end

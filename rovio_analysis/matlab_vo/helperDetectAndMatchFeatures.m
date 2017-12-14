@@ -15,11 +15,11 @@
 function [currPoints, currFeatures, indexPairs] = helperDetectAndMatchFeatures(...
     prevFeatures, I)
 
-numPoints = 250;
+numPoints = 350;
 
 % Detect and extract features from the current image.
-%currPoints   = detectSURFFeatures(I, 'MetricThreshold', 500);
-currPoints   = detectSURFFeatures(I);
+currPoints   = detectSURFFeatures(I, 'MetricThreshold', 500);
+%currPoints   = detectBRISKFeatures(I);
 currPoints   = selectUniform(currPoints, numPoints, size(I));
 currFeatures = extractFeatures(I, currPoints, 'Upright', true);
 

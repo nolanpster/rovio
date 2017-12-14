@@ -61,7 +61,7 @@ for i = 1:100
     % validPointFraction is the fraction of inlier points that project in
     % front of both cameras. If the this fraction is too small, then the
     % fundamental matrix is likely to be incorrect.
-    if validPointFraction > .01
+    if validPointFraction > .006
        return;
     end
 end

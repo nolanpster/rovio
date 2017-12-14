@@ -56,7 +56,7 @@
 %     ICPR workshop TrakMark2012, pp.40-42, 2012.
 
 truth_data_offset = 60; % Necessary offset to match truth data when plotting.
-time_index_offset = 400; % Skip the "KF-IMU initialization" where they shake the camera a lot."
+time_index_offset = 400 + 300; % Skip the "KF-IMU initialization" where they shake the camera a lot."
 starting_image = truth_data_offset + time_index_offset;
 
 image_bag = load('../camera_msgs.mat');
@@ -70,7 +70,8 @@ tangential_distortion = [0.00019359, 1.76187114e-05]; %p1,p2
 % radial_distortion = [0,0,0];
 % tangential_distortion = [0,0];
 
-
+% Data storage location.
+estimaged_pose = zeros(images.NumMessages,3);
 %% Create a View Set Containing the First View of the Sequence
 % Use a |viewSet| object to store and manage the image points and the
 % camera pose associated with each view, as well as point matches between
@@ -99,10 +100,11 @@ cameraParams = cameraParameters('IntrinsicMatrix', K, 'TangentialDistortion',tan
 prevI = undistortImage(I_gray, cameraParams); 
 
 % Detect features. 
-prevPoints = detectSURFFeatures(prevI);
+prevPoints = detectSURFFeatures(prevI, 'MetricThreshold', 500);
+%prevPoints = detectBRISKFeatures(prevI);
 
 % Select a subset of features, uniformly distributed throughout the image.
-numPoints = 250;
+numPoints = 350;
 prevPoints = selectUniform(prevPoints, numPoints, size(prevI));
 
 % Extract features. Using 'Upright' features improves matching quality if 
@@ -122,7 +124,7 @@ vSet = addView(vSet, viewId, 'Points', prevPoints, 'Orientation', eye(3),...
 
 % Setup axes.
 figure
-axis([-220, 50, -140, 20, -50, 300]);
+axis([-1200, 500, -500, 1200, -300, 500]*4);
 
 % Set Y-axis to be vertical pointing down.
 view(gca, 3);
@@ -146,6 +148,8 @@ trajectoryEstimated = plot3(0, 0, 0, 'g-');
 
 legend('Estimated Trajectory');
 title('Camera Trajectory');
+
+
 
 %% Estimate the Pose of the Second View
 % Detect and extract features from the second view, and match them to the
@@ -239,7 +243,7 @@ for viewId = 3:15
     
     % Estimate the world camera pose for the current view.
     [orient, loc] = estimateWorldCameraPose(imagePoints, worldPoints, ...
-        cameraParams, 'Confidence', 1, 'MaxReprojectionError', 0.8);
+        cameraParams, 'Confidence', 70, 'MaxReprojectionError', 0.8);
     
     % Restore the original warning state
     warning(warningstate)
@@ -314,7 +318,7 @@ for viewId = 16:images.NumMessages
     
     % Estimate the world camera pose for the current view.
     [orient, loc] = estimateWorldCameraPose(imagePoints, worldPoints, ...
-        cameraParams, 'MaxNumTrials', 5000, 'Confidence', 99.99, ...
+        cameraParams, 'MaxNumTrials', 5000, 'Confidence', 70, ...
         'MaxReprojectionError', 0.8);
     
     % Restore the original warning state
@@ -348,6 +352,7 @@ for viewId = 16:images.NumMessages
             'RelativeTolerance', 1e-9, 'MaxIterations', 300);
         
         vSet = updateView(vSet, camPoses); % Update view set.
+        
     end
     
     % Update camera trajectory plot.
