@@ -1,4 +1,6 @@
-reload_all_data = false;
+reload_all_data = true;
+load_raw_image_data = true;
+
 if reload_all_data
     easy01_dataset_bag = rosbag('/home/nolan/rovio_datasets/euroc/01_easy/dataset.bag');
     leica_bag = select(easy01_dataset_bag, 'Time', [easy01_dataset_bag.StartTime, easy01_dataset_bag.EndTime], ...

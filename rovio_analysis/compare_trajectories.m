@@ -1,8 +1,15 @@
 %% Script flags.
 close all
 
-reload_truth_files = false;
+reload_truth_files = true;
 do_plotting = true;
+
+%% Load recorded mat files. %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%files_to_plot = {'ijrr17_pose_1'}; % ROVIO tracking only one feature, essentially Free-Inertial Navigation.
+%files_to_plot = {'matlab_vo_data', 'ijrr17_pose'}; % MATLAB VO demo vs ROVIO tracking 25 features
+files_to_plot = {'ijrr17_pose_50', 'ijrr17_pose', 'ijrr17_pose_15', 'ijrr17_pose_7'}; % ROVIO with 50,25,15,&7  features
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % % % Matrix Indeces % % %
 % Pose_With_Covariance_stamped matrix (extracted to matrix by msgs2mat.m)
@@ -28,32 +35,40 @@ truth_end_epoch = leica_time_series.Time(end);
 raw_truth_time = leica_time_series.Time(truth_time_offset:end);
 truth_time = leica_time_series.Time(truth_time_offset:end) - leica_time_series.Time(truth_time_offset);
 
-%% Load recorded mat files.
-files_to_plot = {'ijrr17_pose_50', 'ijrr17_pose', 'ijrr17_pose_15', 'ijrr17_pose_7'};
 
 for i = 1:length(files_to_plot)
     load(files_to_plot{i}); % Loads pose_wcs_cell
-    pose_wcs_cell = pose_wcs_cell(:); % Force column form.
-    num_msgs = size(pose_wcs_cell,1);
-    % Extract estimated position with this anonymous function that parses Msg structure: Pose_with_covariance_stamped.
-    pose_wcs_accessor = @(x) [pose_wcs_cell{x}.Header.Stamp.Sec, pose_wcs_cell{x}.Header.Stamp.Nsec, ...
-                              pose_wcs_cell{x}.Pose.Pose.Position.X, pose_wcs_cell{x}.Pose.Pose.Position.Y, ...
-                              pose_wcs_cell{x}.Pose.Pose.Position.Z, pose_wcs_cell{x}.Pose.Pose.Orientation.X, ...
-                              pose_wcs_cell{x}.Pose.Pose.Orientation.Y, pose_wcs_cell{x}.Pose.Pose.Orientation.Z, ...
-                              pose_wcs_cell{x}.Pose.Pose.Orientation.W,];
-    % Extract Msg data.
-    ijrr17_data = msgs2mat(pose_wcs_cell, pose_wcs_accessor, 9);
+    if strcmp(files_to_plot{i}, 'matlab_vo_data')
+        msg_x_idx = 1; msg_y_idx = 2; msg_z_idx = 3;
+        ijrr17_data = vertcat(vSet.Views.Location{:})/100;
+        num_msgs = size(ijrr17_data,1);
+        ijrr17_raw_time = raw_truth_time(1:num_msgs);
+        % quick hack for matlab surf stuff.
+    else
+        pose_wcs_cell = pose_wcs_cell(:); % Force column form.
+        num_msgs = size(pose_wcs_cell,1);
+        % Extract estimated position with this anonymous function that parses Msg structure: Pose_with_covariance_stamped.
+        pose_wcs_accessor = @(x) [pose_wcs_cell{x}.Header.Stamp.Sec, pose_wcs_cell{x}.Header.Stamp.Nsec, ...
+                                  pose_wcs_cell{x}.Pose.Pose.Position.X, pose_wcs_cell{x}.Pose.Pose.Position.Y, ...
+                                  pose_wcs_cell{x}.Pose.Pose.Position.Z, pose_wcs_cell{x}.Pose.Pose.Orientation.X, ...
+                                  pose_wcs_cell{x}.Pose.Pose.Orientation.Y, pose_wcs_cell{x}.Pose.Pose.Orientation.Z, ...
+                                  pose_wcs_cell{x}.Pose.Pose.Orientation.W,];
+        ijrr17_data = msgs2mat(pose_wcs_cell, pose_wcs_accessor, 9);
+        % The time samples of the truth data and the recorded data won't match up, so we need to do some interpolating.
+        % Find closest index to the starting epoch of the truth time.
+        ijrr17_raw_time = ijrr17_data(:, msg_sec_idx) + ijrr17_data(:, msg_nsec_idx)*1e-9;
+        msg_sec_idx = 1;    msg_nsec_idx = 2;   msg_x_idx = 3;  msg_y_idx = 4;  msg_z_idx = 5;
+        msg_qx_idx = 6;     msg_qy_idx = 7;     msg_qz_idx = 8; msg_qw_idx = 9;
+    end
 
     % Subtract starting location so that both the truth and the recorded data start at the same place
     ijrr17_origin_loc_mat = kron(ones(num_msgs,1), ...
                                  [ijrr17_data(1,msg_x_idx), ijrr17_data(1,msg_y_idx), ijrr17_data(1,msg_z_idx)]);
     ijrr17_xyz = ijrr17_data(:,msg_x_idx:msg_z_idx) - ijrr17_origin_loc_mat;
 
-    % The time samples of the truth data and the recorded data won't match up, so we need to do some interpolating.
-    % Find closest index to the starting epoch of the truth time.
-    ijrr17_raw_time = ijrr17_data(:, msg_sec_idx) + ijrr17_data(:, msg_nsec_idx)*1e-9;
+
+    % Detmine which dataset needs to be interpolated.
     start_t_idx = find(ijrr17_raw_time >= truth_start_epoch, 1);
-    % Determine which dataset needs to be interpolated.
     if ijrr17_raw_time(end) > truth_end_epoch
         % Not implemented yet.
         dbstop()
@@ -75,7 +90,7 @@ for i = 1:length(files_to_plot)
         % Also shift estimated position to have it's first point at (0,0,0).
         ijrr17_xyz = [est_x - est_x(1), est_y - est_y(1), est_z - est_z(1)];
     end
-    
+
     % Apply rotation to align recorded initial heading with truth data set.
     theta = -.2;
     Rz = [cos(theta), -sin(theta), 0; ...
@@ -99,17 +114,25 @@ for i = 1:length(files_to_plot)
         % Add recorded data to Error-magnitude figure.
         rms_fig = plot_traj_rms(leica_pos_data, ijrr17_xyz_corrected,truth_time, rms_fig);
     end
-end 
+end
 %% Set legends and plot format.
 if do_plotting
     % Traj. Fig.
     figure(traj_fig)
-    Legend=cell(5,1);
+    if strcmp(files_to_plot{1}, 'matlab_vo_data')
+        Legend=cell(2,1);
+        Legend{2}= 'Matlab VisOdom';
+    elseif strcmp(files_to_plot{1}, 'ijrr17_pose_1')
+        Legend=cell(2,1);
+        Legend{2}= 'Free-Inertial';
+    else
+        Legend=cell(5,1);
+        Legend{2}= 'IJRR-17: 50-features';
+        Legend{3}= 'IJRR-17: 25-features';
+        Legend{4}= 'IJRR-17: 15-features';
+        Legend{5}= 'IJRR-17: 7-features';
+    end
     Legend{1}= 'Truth' ;
-    Legend{2}= 'IJRR-17: 50-features';
-    Legend{3}= 'IJRR-17: 25-features';
-    Legend{4}= 'IJRR-17: 15-features';
-    Legend{5}= 'IJRR-17: 7-features';
     legend(Legend);
     xlabel('X-pos (m)')
     ylabel('Y-pos (m)')
@@ -117,11 +140,20 @@ if do_plotting
     % RMS Fig.
     figure(rms_fig)
     title('Error-Magnitude')
-    Legend=cell(4,1);
-    Legend{1}= 'IJRR-17: 50-features';
-    Legend{2}= 'IJRR-17: 25-features';
-    Legend{3}= 'IJRR-17: 15-features';
-    Legend{4}= 'IJRR-17: 7-feature';
+    if strcmp(files_to_plot{1}, 'matlab_vo_data')
+        Legend=cell(2,1);
+        Legend{1}= 'IJRR-17: 25-features';
+        Legend{2}= 'MATLAB-17: VisOdom';
+    elseif strcmp(files_to_plot{1}, 'ijrr17_pose_1')
+        Legend=cell(1,1);
+        Legend{1}= 'Free-Inertial';
+    else
+        Legend=cell(4,1);
+        Legend{1}= 'IJRR-17: 50-features';
+        Legend{2}= 'IJRR-17: 25-features';
+        Legend{3}= 'IJRR-17: 15-features';
+        Legend{4}= 'IJRR-17: 7-features';
+    end
     legend(Legend,'Location','NorthWest');
     ylabel('Error (m)')
     xlabel('Time (sec)')
